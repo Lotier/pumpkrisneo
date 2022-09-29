@@ -10,7 +10,7 @@
 
 #include <FastLED.h>
 
-// #define DEBUG   //If you comment this line, the DPRINT & DPRINTLN lines are defined as blank.
+// #define DEBUG                                      //If you comment this line, the DPRINT & DPRINTLN lines are defined as blank.
 #ifdef DEBUG                                       //Macros are usually in all capital letters.
 #define DPRINT(...) Serial.print(__VA_ARGS__)      //DPRINT is a macro, debug print
 #define DPRINTLN(...) Serial.println(__VA_ARGS__)  //DPRINTLN is a macro, debug print with new line
@@ -43,19 +43,22 @@ bool inverted = true;
 
 byte board[BOARD_HEIGHT][BOARD_WIDTH];
 
-int activeShape;          // the index of the currently active shape
-int currentRotation = 0;  // the index of the current piece's rotation
+int activeShape;
+int currentRotation = 0;
 
-int yOffset = 0;  // how far from the top the active shape is
-int xOffset = 0;  // how far from the left the active shape is
+int yOffset = 0;
+int xOffset = 0;
 
 // PIECES
 
 #define EMPTY 7
 
+int bagOfPieces[7];
+int currentBagSelection = EMPTY;
+
 typedef struct {
-  int rotations[4][4][2];  // picture
-  CRGB color;              // color
+  int rotations[4][4][2];
+  CRGB color;
   char pieceName;
 } Piece;
 
@@ -199,6 +202,8 @@ void setup() {
   paintAll(200);
 
   setup_buttons();
+
+  drawDirectionArrows(200);
 }
 
 void loop() {
@@ -277,31 +282,61 @@ void loop() {
     // Press anything to start
     for (byte i = 0; i < NUMBUTTONS; i++) {
       if (justpressed[i]) {
-        gameOver = false;
-        startGame();
-        break;
+        justpressed[i] = 0;
+        switch (i) {
+          case 0:  // invert
+            inverted = !inverted;
+            drawDirectionArrows(500);
+            break;
+          case 1:
+            startGame();
+            break;
+          case 2:
+            startGame();
+            break;
+          case 3:
+            startGame();
+            break;
+        }
       }
     }
   }
   delay(50);
 }
 
-void startGame() {
-  stepCounter = 0;
-  gravityTrigger = 20;  // reset the trigger point at which the active piece will drop another step
-  level = 1;            // reset the level
-  score = 0;            // reset the score
-  totalLines = 0;       // reset the line count
-  clearBoard();         // reset the fixed-piece grid
-  launchNewShape();     // kick off the first shape
+int pickNextPieceFromBag() {
+  if (currentBagSelection == EMPTY) {
+    currentBagSelection = 0;
+    for (int i = 0; i < EMPTY; i++) {
+      bagOfPieces[i] = i;
+    }
+
+    // Fisher-Yates Shuffle
+    for (int i = EMPTY - 1; i >= 1; i--) {
+      int j = random(0, i);
+      // In-place shuffle
+      bagOfPieces[i] ^= bagOfPieces[j];
+      bagOfPieces[j] ^= bagOfPieces[i];
+      bagOfPieces[i] ^= bagOfPieces[j];
+    }
+
+    DPRINT("Shuffled Bag [");
+    for (int i = 0; i < EMPTY; i++) {
+      DPRINT(pieceBag[i]);
+      DPRINT(",");
+    }
+    DPRINTLN("]");
+  }
+
+  return bagOfPieces[currentBagSelection++];  // post increase selection;
 }
 
 void launchNewShape() {
-  activeShape = random(7);              // pick a random shape
-  yOffset = 0;                          // reset yOffset so it comes from the top
-  xOffset = BOARD_WIDTH / 2;            // reset xOffset so it comes from the middle
-  currentRotation = 0;                  // pieces start from the default rotation
-  gravityTrigger = max(1, 21 - level);  // set the gravity appropriately. this is so that a drop doesn't carry to the next piece
+  activeShape = pickNextPieceFromBag();  // pick a random shape
+  yOffset = 0;                           // reset yOffset so it comes from the top
+  xOffset = (BOARD_WIDTH - 1) / 2;       // reset xOffset so it comes from the middle
+  currentRotation = 0;                   // pieces start from the default rotation
+  gravityTrigger = max(1, 21 - level);   // set the gravity appropriately. this is so that a drop doesn't carry to the next piece
 
   //can the piece be placed in the starting location?
   //if not, the stack is full so end the game
@@ -374,7 +409,6 @@ void drawActivePiece() {
       adjustedX = (BOARD_WIDTH - 1 - pixelX);
     }
 
-
     setLED(pixelY * BOARD_WIDTH + adjustedX, pieces[activeShape].color);
   }
 }
@@ -408,14 +442,21 @@ void dropFullRows() {
             adjustedJ = (BOARD_WIDTH - 1 - j);
           }
           setLED(fullRows[i] * BOARD_WIDTH + adjustedJ, CRGB::Black);
-          // leds[fullRows[i] * BOARD_WIDTH + adjustedJ] = CRGB::Black;
         }
       }
       FastLED.show();
-      delay(200);
+      delay(175);
       drawFixedMinos();
       FastLED.show();
-      delay(200);
+      delay(175);
+    }
+
+    for (int columnClear = 0; columnClear < BOARD_WIDTH; columnClear++) {
+      for (int clearRow = 0; clearRow < fullRowCount; clearRow++) {  // we only need to do this for as many filled rows as there are
+        setLED(fullRows[clearRow] * BOARD_WIDTH + columnClear, CRGB::Black);
+      }
+      FastLED.show();
+      delay(50);
     }
 
     //  remove the filled rows and drop them
@@ -449,19 +490,32 @@ void dropFullRows() {
         break;
     }
 
-    score = score + thePoints;  // add the points to the total score
+    score = score + thePoints;
 
-    //increment the level every 10 lines
     if (totalLines % 10 == 0) {
       level++;
-      gravityTrigger--;  // and with every level, decrease the trigger value at which stepCounter will drop the piece. This makes it faster with every level
+      gravityTrigger--;
     }
   }
 }
 
+
+void startGame() {
+  gameOver = false;
+  stepCounter = 0;
+  gravityTrigger = 20;
+  level = 1;
+  score = 0;
+  totalLines = 0;
+  clearBoard();
+  launchNewShape();
+}
+
+
 void endGame() {
   printBoard();
   gameOver = true;
+  currentBagSelection = EMPTY;
   clearLEDs();
   clearBoard();
   paintAll(500);
@@ -542,6 +596,35 @@ void blinkRandom() {
       blinkState = BlinkOffFirst;
       break;
   }
+  FastLED.show();
+}
+
+void drawDirectionArrows(int drawLength) {
+  clearLEDs();
+  FastLED.show();
+
+  int arrowHeight = BOARD_WIDTH / 2;
+
+  for (int i = 0; i < BOARD_HEIGHT; i++) {
+    if (i + arrowHeight >= BOARD_HEIGHT) {
+      break;
+    }
+
+    if (i % 2 != 0) {
+      continue;
+    }
+
+    for (int j = 0; j < arrowHeight; j++) {
+      setLED(((i + j) * BOARD_WIDTH) + j, CRGB::Red);
+      setLED(((i + j) * BOARD_WIDTH) + (BOARD_WIDTH - 1 - j), CRGB::Red);
+    }
+  }
+
+  FastLED.show();
+
+  delay(drawLength);
+
+  clearLEDs();
   FastLED.show();
 }
 

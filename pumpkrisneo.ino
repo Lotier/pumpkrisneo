@@ -21,17 +21,18 @@
 #define SERIAL_BEGIN
 #endif
 
-/**************
-   PINOUT
- **************/
-
-#define MATRIX_PIN 2
+// *************
+// BASIC DEFINES
+// *************
 #define BOARD_WIDTH 10
 #define BOARD_HEIGHT 20
+
+#define MATRIX_PIN 2
 #define MATRIX_PIXELS (BOARD_WIDTH * BOARD_HEIGHT)
 #define MATRIX_BRIGHTNESS 8
 
 CRGB leds[MATRIX_PIXELS];
+byte board[BOARD_HEIGHT][BOARD_WIDTH];
 
 int score;            // the total score
 int totalLines;       // number of lines cleared
@@ -41,15 +42,14 @@ int gravityTrigger;   // the active piece will drop one step after this many ste
 bool gameOver = true;
 bool inverted = true;
 
-byte board[BOARD_HEIGHT][BOARD_WIDTH];
-
+// *************
+// PIECES
+// *************
 int activeShape;
 int currentRotation = 0;
 
 int yOffset = 0;
 int xOffset = 0;
-
-// PIECES
 
 #define EMPTY 7
 
@@ -223,11 +223,11 @@ void loop() {
             };
             break;
           case 1:  // move right
-            if (checkNextMove(currentRotation, xOffset + (inverted ? -1 : +1), yOffset)) {
+            if (checkNextMove(currentRotation, xOffset + (inverted ? +1 : -1), yOffset)) {
               if (inverted) {
-                xOffset--;
-              } else {
                 xOffset++;
+              } else {
+                xOffset--;
               }
             };
             break;
@@ -236,11 +236,11 @@ void loop() {
                                                           // it's probably not the method used in the real game, but it was a quick solution
             break;
           case 3:  // move left
-            if (checkNextMove(currentRotation, xOffset + (inverted ? +1 : -1), yOffset)) {
+            if (checkNextMove(currentRotation, xOffset + (inverted ? -1 : +1), yOffset)) {
               if (inverted) {
-                xOffset++;
-              } else {
                 xOffset--;
+              } else {
+                xOffset++;
               }
             }
             break;
@@ -279,7 +279,6 @@ void loop() {
       blinkRandom();
     }
 
-    // Press anything to start
     for (byte i = 0; i < NUMBUTTONS; i++) {
       if (justpressed[i]) {
         justpressed[i] = 0;
@@ -288,13 +287,7 @@ void loop() {
             inverted = !inverted;
             drawDirectionArrows(500);
             break;
-          case 1:
-            startGame();
-            break;
-          case 2:
-            startGame();
-            break;
-          case 3:
+          default:
             startGame();
             break;
         }
@@ -322,7 +315,7 @@ int pickNextPieceFromBag() {
 
     DPRINT("Shuffled Bag [");
     for (int i = 0; i < EMPTY; i++) {
-      DPRINT(pieceBag[i]);
+      DPRINT(bagOfPieces[i]);
       DPRINT(",");
     }
     DPRINTLN("]");
@@ -332,7 +325,7 @@ int pickNextPieceFromBag() {
 }
 
 void launchNewShape() {
-  activeShape = pickNextPieceFromBag();  // pick a random shape
+  activeShape = pickNextPieceFromBag();  // pick a shape
   yOffset = 0;                           // reset yOffset so it comes from the top
   xOffset = (BOARD_WIDTH - 1) / 2;       // reset xOffset so it comes from the middle
   currentRotation = 0;                   // pieces start from the default rotation
@@ -365,9 +358,9 @@ boolean checkNextMove(int nextRot, int nextXOffset, int nextYOffset) {
     }
 
     //have we collided with any other shapes?
-    int inverseCol = (BOARD_WIDTH - 1) - (pieces[activeShape].rotations[nextRot][thisPixel][0] + nextXOffset);
-    int theRow = (pieces[activeShape].rotations[nextRot][thisPixel][1]) + nextYOffset;
-    if (board[theRow][inverseCol] != EMPTY) {
+    int col = pieces[activeShape].rotations[nextRot][thisPixel][0] + nextXOffset;
+    int row = pieces[activeShape].rotations[nextRot][thisPixel][1] + nextYOffset;
+    if (board[row][col] != EMPTY) {
       isOK = false;
       break;  //no need to check further
     }
@@ -377,9 +370,9 @@ boolean checkNextMove(int nextRot, int nextXOffset, int nextYOffset) {
 
 void storeFinalPlacement() {
   for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
-    int pixelX = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;  //calculate its final, offset X position
-    int pixelY = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;  //calculate its final, offset Y position
-    board[pixelY][(BOARD_WIDTH - 1) - pixelX] = activeShape;
+    int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
+    int row = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
+    board[row][col] = activeShape;
   }
 }
 
@@ -387,11 +380,7 @@ void drawFixedMinos() {
   for (int i = 0; i < BOARD_HEIGHT; i++) {
     for (int j = 0; j < BOARD_WIDTH; j++) {
       if (board[i][j] != EMPTY) {
-        if (i % 2 == 0) {  // Zig Row
-          setLED(i * BOARD_WIDTH + j, pieces[board[i][j]].color);
-        } else {  // Zag Row
-          setLED(i * BOARD_WIDTH + (BOARD_WIDTH - 1 - j), pieces[board[i][j]].color);
-        }
+        setLED(i, j, pieces[board[i][j]].color);
       }
     }
   }
@@ -399,17 +388,10 @@ void drawFixedMinos() {
 
 void drawActivePiece() {
   for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
-    int pixelX = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
-    int pixelY = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
+    int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
+    int row = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
 
-    int adjustedX;
-    if (pixelY % 2 != 0) {
-      adjustedX = pixelX;
-    } else {
-      adjustedX = (BOARD_WIDTH - 1 - pixelX);
-    }
-
-    setLED(pixelY * BOARD_WIDTH + adjustedX, pieces[activeShape].color);
+    setLED(row, col, pieces[activeShape].color);
   }
 }
 
@@ -431,17 +413,13 @@ void dropFullRows() {
   }
 
 
-  if (fullRowCount > 0) {  // if there is a filled row, blink all filled rows
+  if (fullRowCount > 0) {  
+    
+    // Blink all the filled rows.
     for (int blinkCount = 0; blinkCount < 3; blinkCount++) {
       for (int i = 0; i < fullRowCount; i++) {
         for (int j = 0; j < BOARD_WIDTH; j++) {
-          int adjustedJ;
-          if (i % 2 != 0) {
-            adjustedJ = j;
-          } else {
-            adjustedJ = (BOARD_WIDTH - 1 - j);
-          }
-          setLED(fullRows[i] * BOARD_WIDTH + adjustedJ, CRGB::Black);
+          setLED(fullRows[i], j, CRGB::Black);
         }
       }
       FastLED.show();
@@ -451,17 +429,18 @@ void dropFullRows() {
       delay(175);
     }
 
+    // Sideway wipe of all the filled rows.
     for (int columnClear = 0; columnClear < BOARD_WIDTH; columnClear++) {
-      for (int clearRow = 0; clearRow < fullRowCount; clearRow++) {  // we only need to do this for as many filled rows as there are
-        setLED(fullRows[clearRow] * BOARD_WIDTH + columnClear, CRGB::Black);
+      for (int clearRow = 0; clearRow < fullRowCount; clearRow++) {
+        setLED(fullRows[clearRow], columnClear, CRGB::Black);
       }
       FastLED.show();
       delay(50);
     }
 
     //  remove the filled rows and drop them
-    for (int i = 0; i < fullRowCount; i++) {                     // we only need to do this for as many filled rows as there are
-      for (int copyRow = fullRows[i]; copyRow > 0; copyRow--) {  // for every row above the filled row
+    for (int i = 0; i < fullRowCount; i++) {
+      for (int copyRow = fullRows[i]; copyRow > 0; copyRow--) {
         for (int j = 0; j < BOARD_WIDTH; j++) {
           board[copyRow][j] = board[copyRow - 1][j];
         }
@@ -521,6 +500,7 @@ void endGame() {
   paintAll(500);
 }
 
+#ifdef DEBUG
 void printBoard() {
   char buffer[2];
   for (int i = 0; i < BOARD_HEIGHT; i++) {
@@ -536,11 +516,21 @@ void printBoard() {
     DPRINTLN("");
   }
 }
+#else
+void printBoard() {}
+#endif
 
-void setLED(int index, CRGB color) {
-  int number = index;
+void setLED(int row, int column, CRGB color) {
+  int calculatedColumn;  
+  if (row % 2 == 0) { //zig rows
+    calculatedColumn = column;
+  } else { // zag rows
+    calculatedColumn = (BOARD_WIDTH - 1) - column;
+  }
+  
+  int number = row * BOARD_WIDTH + calculatedColumn;
   if (inverted) {
-    number = MATRIX_PIXELS - 1 - index;
+    number = (MATRIX_PIXELS - 1) - number;
   }
 
   leds[number] = color;
@@ -610,13 +600,13 @@ void drawDirectionArrows(int drawLength) {
       break;
     }
 
-    if (i % 2 != 0) {
+    if (i % 4 != 0) {
       continue;
     }
 
     for (int j = 0; j < arrowHeight; j++) {
-      setLED(((i + j) * BOARD_WIDTH) + j, CRGB::Red);
-      setLED(((i + j) * BOARD_WIDTH) + (BOARD_WIDTH - 1 - j), CRGB::Red);
+      setLED((i + j), j, CRGB::Red);
+      setLED((i + j), (BOARD_WIDTH - 1) - j, CRGB::Red);
     }
   }
 

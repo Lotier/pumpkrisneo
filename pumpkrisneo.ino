@@ -274,9 +274,8 @@ void loop() {
     }
   } else {
     // GAME OVER
-    if (stepCounter > 10) {
-      stepCounter = 0;
-      blinkRandom();
+    if (stepCounter % 5 == 0) {
+      DrawPumpkinFace(stepCounter);
     }
 
     for (byte i = 0; i < NUMBUTTONS; i++) {
@@ -553,41 +552,41 @@ void clearBoard() {
   }
 }
 
-enum BlinkState {
-  BlinkOffFirst,
-  BlinkOnFirst,
-  BlinkOffSecond,
-  BlinkOnSecond
+int face[][BOARD_WIDTH] = {
+  { 0, 0, 1, 0, 0, 0, 0, 1, 0, 0 },
+  { 0, 1, 1, 1, 0, 0, 1, 1, 1, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 1, 0, 0, 1, 0, 0, 0, 1, 0 },
+  { 0, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+  { 0, 0, 1, 1, 1, 1, 1, 1, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
+int faceHeight = sizeof(face) / sizeof(int[BOARD_WIDTH]);
 
-BlinkState blinkState = BlinkOffFirst;
-int blinkLED;
-CRGB blinkColor;
-
-void blinkRandom() {
-  switch (blinkState) {
-    case BlinkOffFirst:
-      blinkLED = random(0, MATRIX_PIXELS);
-      blinkColor = CRGB(random(0, 256), random(0, 256), random(0, 256));
-
-      leds[blinkLED] = CRGB::Black;
-      blinkState = BlinkOnFirst;
-      break;
-    case BlinkOnFirst:
-      leds[blinkLED] = blinkColor;
-      blinkState = BlinkOffSecond;
-      break;
-    case BlinkOffSecond:
-      leds[blinkLED] = CRGB::Black;
-      blinkState = BlinkOnSecond;
-      break;
-    case BlinkOnSecond:
-      leds[blinkLED] = blinkColor;
-      blinkState = BlinkOffFirst;
-      break;
+void DrawPumpkinFace(int stepCounter) {
+  for (int i = 0; i < MATRIX_PIXELS; i++) {
+    if (stepCounter % 360 != 0) {
+      leds[i] = CRGB::Orange;
+    } else {
+      leds[i] = CRGB::Black;
+    }
   }
+
+  for (int i = 0; i < faceHeight; i++) {
+    for (int j = 0; j < BOARD_WIDTH; j++) {
+      if (face[i][j] == 1) {
+        CRGB color = CRGB(80, 35, 0);
+        int r = random(80);
+        color = color - CRGB(r, r / 2, r / 2);
+
+        setLED(i + (BOARD_HEIGHT / 2) - (faceHeight / 2), j, color);
+      }
+    }
+  }
+
   FastLED.show();
 }
+
 
 void drawDirectionArrows(int drawLength) {
   clearLEDs();

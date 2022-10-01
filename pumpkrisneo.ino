@@ -199,7 +199,10 @@ void setup() {
 
   clearBoard();
 
-  paintAll(200);
+  int numOfPieces = (sizeof(pieces) / sizeof(Piece)) - 1;
+  for (int piece = numOfPieces; piece >= 0; piece--) {
+    paintAll(200, pieces[piece].color);
+  }
 
   setup_buttons();
 
@@ -412,8 +415,8 @@ void dropFullRows() {
   }
 
 
-  if (fullRowCount > 0) {  
-    
+  if (fullRowCount > 0) {
+
     // Blink all the filled rows.
     for (int blinkCount = 0; blinkCount < 3; blinkCount++) {
       for (int i = 0; i < fullRowCount; i++) {
@@ -479,6 +482,7 @@ void dropFullRows() {
 
 
 void startGame() {
+  FastLED.setBrightness(MATRIX_BRIGHTNESS);
   gameOver = false;
   stepCounter = 0;
   gravityTrigger = 20;
@@ -494,9 +498,46 @@ void endGame() {
   printBoard();
   gameOver = true;
   currentBagSelection = EMPTY;
+
+  for (int blinkCount = 0; blinkCount < 6; blinkCount++) {
+    drawFixedMinos();
+
+    for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
+      int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
+      int row = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
+
+      if (blinkCount % 2 == 0) {
+        setLED(row, col, pieces[activeShape].color);
+      } else {
+        setLED(row, col, CRGB::Black);
+      }
+    }
+    FastLED.show();
+    delay(175);
+  }
+
+  for (int i = 0; i < BOARD_HEIGHT; i++) {
+    for (int j = 0; j < BOARD_WIDTH; j++) {
+      CRGB rowColor;
+      switch (i % 3) {
+        case 0:
+          rowColor = CRGB(80, 35, 0);
+          break;
+        case 1:
+          rowColor = CRGB::Green;
+          break;
+        case 2:
+          rowColor = CRGB(33, 0, 33);
+          break;
+      }
+      setLED(i, j, rowColor);
+    }
+    FastLED.show();
+    delay(300);
+  }
+
   clearLEDs();
   clearBoard();
-  paintAll(500);
 }
 
 #ifdef DEBUG
@@ -520,13 +561,13 @@ void printBoard() {}
 #endif
 
 void setLED(int row, int column, CRGB color) {
-  int calculatedColumn;  
-  if (row % 2 == 0) { //zig rows
+  int calculatedColumn;
+  if (row % 2 == 0) {  //zig rows
     calculatedColumn = column;
-  } else { // zag rows
+  } else {  // zag rows
     calculatedColumn = (BOARD_WIDTH - 1) - column;
   }
-  
+
   int number = row * BOARD_WIDTH + calculatedColumn;
   if (inverted) {
     number = (MATRIX_PIXELS - 1) - number;
@@ -564,21 +605,23 @@ int face[][BOARD_WIDTH] = {
 int faceHeight = sizeof(face) / sizeof(int[BOARD_WIDTH]);
 
 void DrawPumpkinFace(int stepCounter) {
+  FastLED.setBrightness(48);
   for (int i = 0; i < MATRIX_PIXELS; i++) {
-    if (stepCounter % 360 != 0) {
-      leds[i] = CRGB::Orange;
-    } else {
-      leds[i] = CRGB::Black;
-    }
+    CRGB color = CRGB(80, 35, 0);
+    int r = random(80);
+    color = color - CRGB(r, r / 2, r / 2);
+    leds[i] = color;
   }
 
   for (int i = 0; i < faceHeight; i++) {
     for (int j = 0; j < BOARD_WIDTH; j++) {
       if (face[i][j] == 1) {
-        CRGB color = CRGB(80, 35, 0);
-        int r = random(80);
-        color = color - CRGB(r, r / 2, r / 2);
-
+        CRGB color;
+        if (stepCounter % 180 > 90) {
+          color = CRGB(33, 0, 33);
+        } else {
+          color = CRGB::Green;
+        }
         setLED(i + (BOARD_HEIGHT / 2) - (faceHeight / 2), j, color);
       }
     }
@@ -587,8 +630,8 @@ void DrawPumpkinFace(int stepCounter) {
   FastLED.show();
 }
 
-
 void drawDirectionArrows(int drawLength) {
+  FastLED.setBrightness(MATRIX_BRIGHTNESS);
   clearLEDs();
   FastLED.show();
 
@@ -617,16 +660,10 @@ void drawDirectionArrows(int drawLength) {
   FastLED.show();
 }
 
-void paintAll(int timing) {
-  int numOfLEDs = (sizeof(pieces) / sizeof(Piece)) - 1;
-  for (int piece = numOfLEDs; piece >= 0; piece--) {
-    for (int i = 0; i < MATRIX_PIXELS; i++) {
-      leds[i] = pieces[piece].color;
-    }
-    FastLED.show();
-    delay(timing);
+void paintAll(int timing, CRGB color) {
+  for (int i = 0; i < MATRIX_PIXELS; i++) {
+    leds[i] = color;
   }
-
-  FastLED.clear();
   FastLED.show();
+  delay(timing);
 }

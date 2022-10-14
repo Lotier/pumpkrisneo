@@ -29,7 +29,7 @@
 
 #define MATRIX_PIN 2
 #define MATRIX_PIXELS (BOARD_WIDTH * BOARD_HEIGHT)
-#define MATRIX_BRIGHTNESS 8
+#define MATRIX_BRIGHTNESS 30
 
 CRGB leds[MATRIX_PIXELS];
 byte board[BOARD_HEIGHT][BOARD_WIDTH];
@@ -271,14 +271,16 @@ void loop() {
 
     if (!gameOver) {
       clearLEDs();
-      drawFixedMinos();
+      drawFixedMinos(BOARD_HEIGHT);
       drawActivePiece();
       FastLED.show();
     }
   } else {
     // GAME OVER
     if (stepCounter % 5 == 0) {
-      DrawPumpkinFace(stepCounter);
+      FastLED.setBrightness(30);      
+      drawPumpkinFace(stepCounter);
+      FastLED.show();
     }
 
     for (byte i = 0; i < NUMBUTTONS; i++) {
@@ -378,11 +380,13 @@ void storeFinalPlacement() {
   }
 }
 
-void drawFixedMinos() {
-  for (int i = 0; i < BOARD_HEIGHT; i++) {
+void drawFixedMinos(int height) {
+  for (int i = 0; i < height; i++) {
     for (int j = 0; j < BOARD_WIDTH; j++) {
       if (board[i][j] != EMPTY) {
         setLED(i, j, pieces[board[i][j]].color);
+      } else {
+        setLED(i, j, CRGB::Black);
       }
     }
   }
@@ -426,7 +430,7 @@ void dropFullRows() {
       }
       FastLED.show();
       delay(175);
-      drawFixedMinos();
+      drawFixedMinos(BOARD_HEIGHT);
       FastLED.show();
       delay(175);
     }
@@ -500,7 +504,7 @@ void endGame() {
   currentBagSelection = EMPTY;
 
   for (int blinkCount = 0; blinkCount < 6; blinkCount++) {
-    drawFixedMinos();
+    drawFixedMinos(BOARD_HEIGHT);
 
     for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
       int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
@@ -516,24 +520,11 @@ void endGame() {
     delay(175);
   }
 
-  for (int i = 0; i < BOARD_HEIGHT; i++) {
-    for (int j = 0; j < BOARD_WIDTH; j++) {
-      CRGB rowColor;
-      switch (i % 3) {
-        case 0:
-          rowColor = CRGB(80, 35, 0);
-          break;
-        case 1:
-          rowColor = CRGB::Green;
-          break;
-        case 2:
-          rowColor = CRGB(33, 0, 33);
-          break;
-      }
-      setLED(i, j, rowColor);
-    }
+  for (int i = BOARD_HEIGHT - 1; i >=0; i--) {
+    drawPumpkinFace(0);
+    drawFixedMinos(i);
     FastLED.show();
-    delay(300);
+    delay(200);
   }
 
   clearLEDs();
@@ -604,8 +595,7 @@ int face[][BOARD_WIDTH] = {
 };
 int faceHeight = sizeof(face) / sizeof(int[BOARD_WIDTH]);
 
-void DrawPumpkinFace(int stepCounter) {
-  FastLED.setBrightness(48);
+void drawPumpkinFace(int stepCounter) {
   for (int i = 0; i < MATRIX_PIXELS; i++) {
     CRGB color = CRGB(80, 35, 0);
     int r = random(80);
@@ -626,8 +616,6 @@ void DrawPumpkinFace(int stepCounter) {
       }
     }
   }
-
-  FastLED.show();
 }
 
 void drawDirectionArrows(int drawLength) {

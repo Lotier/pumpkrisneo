@@ -134,6 +134,7 @@ byte buttons[] = { 14, 15, 16, 17 };  // the analog 0-5 pins are also known as 1
 #define NUMBUTTONS sizeof(buttons)
 // we will track if a button is just pressed, just released, or 'currently pressed'
 volatile byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
+bool listenForInput = false;
 
 void setup_buttons() {
   // Make input & enable pull-up resistors on switch pins
@@ -156,6 +157,10 @@ SIGNAL(TIMER2_OVF_vect) {
 }
 
 void check_switches() {
+  if (!listenForInput) {
+    return;
+  }
+
   static byte previousstate[NUMBUTTONS];
   static byte currentstate[NUMBUTTONS];
   static long lasttime;
@@ -195,7 +200,7 @@ void setup() {
   delay(1500);
 
   FastLED.addLeds<NEOPIXEL, MATRIX_PIN>(leds, MATRIX_PIXELS);
-  FastLED.setBrightness(MATRIX_BRIGHTNESS);
+  FastLED.setBrightness(8);
 
   clearBoard();
 
@@ -207,6 +212,8 @@ void setup() {
   setup_buttons();
 
   drawDirectionArrows(200);
+
+  listenForInput = true;
 }
 
 void loop() {
@@ -278,7 +285,7 @@ void loop() {
   } else {
     // GAME OVER
     if (stepCounter % 5 == 0) {
-      FastLED.setBrightness(30);      
+      FastLED.setBrightness(30);
       drawPumpkinFace(stepCounter);
       FastLED.show();
     }
@@ -317,12 +324,7 @@ int pickNextPieceFromBag() {
       bagOfPieces[i] ^= bagOfPieces[j];
     }
 
-    DPRINT("Shuffled Bag [");
-    for (int i = 0; i < EMPTY; i++) {
-      DPRINT(bagOfPieces[i]);
-      DPRINT(",");
-    }
-    DPRINTLN("]");
+    printBag();
   }
 
   return bagOfPieces[currentBagSelection++];  // post increase selection;
@@ -330,7 +332,7 @@ int pickNextPieceFromBag() {
 
 void launchNewShape() {
   activeShape = pickNextPieceFromBag();  // pick a shape
-  yOffset = 0;                           // reset yOffset so it comes from the top
+  yOffset = -1;                          // reset yOffset so it comes from the top
   xOffset = (BOARD_WIDTH - 1) / 2;       // reset xOffset so it comes from the middle
   currentRotation = 0;                   // pieces start from the default rotation
   gravityTrigger = max(1, 21 - level);   // set the gravity appropriately. this is so that a drop doesn't carry to the next piece
@@ -364,6 +366,11 @@ boolean checkNextMove(int nextRot, int nextXOffset, int nextYOffset) {
     //have we collided with any other shapes?
     int col = pieces[activeShape].rotations[nextRot][thisPixel][0] + nextXOffset;
     int row = pieces[activeShape].rotations[nextRot][thisPixel][1] + nextYOffset;
+
+    if (row < 0 || col < 0) {
+      continue;
+    }
+
     if (board[row][col] != EMPTY) {
       isOK = false;
       break;  //no need to check further
@@ -376,6 +383,11 @@ void storeFinalPlacement() {
   for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
     int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
     int row = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
+
+    if (row < 0 || col < 0) {
+      continue;
+    }
+
     board[row][col] = activeShape;
   }
 }
@@ -396,6 +408,10 @@ void drawActivePiece() {
   for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
     int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
     int row = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
+
+    if (row < 0 || col < 0) {
+      continue;
+    }
 
     setLED(row, col, pieces[activeShape].color);
   }
@@ -500,6 +516,7 @@ void startGame() {
 
 void endGame() {
   printBoard();
+  listenForInput = false;
   gameOver = true;
   currentBagSelection = EMPTY;
 
@@ -509,6 +526,10 @@ void endGame() {
     for (int thisPixel = 0; thisPixel < 4; thisPixel++) {
       int col = pieces[activeShape].rotations[currentRotation][thisPixel][0] + xOffset;
       int row = pieces[activeShape].rotations[currentRotation][thisPixel][1] + yOffset;
+
+      if (row < 0 || col < 0) {
+        continue;
+      }
 
       if (blinkCount % 2 == 0) {
         setLED(row, col, pieces[activeShape].color);
@@ -520,7 +541,7 @@ void endGame() {
     delay(175);
   }
 
-  for (int i = BOARD_HEIGHT - 1; i >=0; i--) {
+  for (int i = BOARD_HEIGHT - 1; i >= 0; i--) {
     drawPumpkinFace(0);
     drawFixedMinos(i);
     FastLED.show();
@@ -529,6 +550,7 @@ void endGame() {
 
   clearLEDs();
   clearBoard();
+  listenForInput = true;
 }
 
 #ifdef DEBUG
@@ -547,8 +569,18 @@ void printBoard() {
     DPRINTLN("");
   }
 }
+
+void printBag() {
+  DPRINT("Shuffled Bag [");
+  for (int i = 0; i < EMPTY; i++) {
+    DPRINT(bagOfPieces[i]);
+    DPRINT(",");
+  }
+  DPRINTLN("]");
+}
 #else
 void printBoard() {}
+void printBag() {}
 #endif
 
 void setLED(int row, int column, CRGB color) {
